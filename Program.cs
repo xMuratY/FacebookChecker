@@ -1,4 +1,4 @@
-﻿using Leaf.xNet;
+using Leaf.xNet;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,7 +8,7 @@ using System.Threading;
 using System.Drawing;
 using Console = Colorful.Console;
 
-namespace AXFBChk
+namespace FBChk
 {
     class Program
     {
@@ -25,31 +25,38 @@ namespace AXFBChk
 
         static void Main(string[] args)
         {
-            var httpRequest = new HttpRequest();
-            httpRequest.IgnoreProtocolErrors = true;
-            httpRequest.ConnectTimeout = 10000;
-            var content = httpRequest.Get("https://api.proxyscrape.com/?request=displayproxies&proxytype=http&timeout=5000");
+            try
+            {
+                var httpRequest = new HttpRequest();
+                httpRequest.IgnoreProtocolErrors = true;
+                httpRequest.ConnectTimeout = 10000;
+                var content = httpRequest.Get("https://api.proxyscrape.com/?request=displayproxies&proxytype=http&timeout=5000");
 
-            if(content.HasError)
+                if (content.HasError)
+                {
+                    proxylist = File.ReadAllLines("proxy.txt").Distinct().ToList();
+                }
+                else
+                {
+
+                    HashSet<string> tmpproxylist = new HashSet<string>();
+                    foreach (object obj in Regex.Matches(content.ToString(), "\\b(\\d{1,3}\\.){3}\\d{1,3}\\:\\d{1,8}\\b", RegexOptions.Singleline))
+                    {
+                        Match match = (Match)obj;
+                        tmpproxylist.Add(match.Groups[0].Value);
+                    }
+                    proxylist = tmpproxylist.ToList();
+                }
+            }
+            catch (Exception e)
             {
                 proxylist = File.ReadAllLines("proxy.txt").Distinct().ToList();
-            }
-            else
-            {
-
-                HashSet<string> tmpproxylist = new HashSet<string>();
-                foreach (object obj in Regex.Matches(content.ToString(), "\\b(\\d{1,3}\\.){3}\\d{1,3}\\:\\d{1,8}\\b", RegexOptions.Singleline))
-                {
-                    Match match = (Match)obj;
-                    tmpproxylist.Add(match.Groups[0].Value);
-                }
-                proxylist = tmpproxylist.ToList();
             }
 
             Console.WriteLine("Fetched proxy count : " + proxylist.Count);
 
             acclist = File.ReadAllLines("acc.txt").Distinct().ToList();
-            
+
             if (File.Exists("checkcache.txt"))
                 alreadychecked = File.ReadAllLines("checkcache.txt").Distinct().ToList();
 
@@ -73,7 +80,7 @@ namespace AXFBChk
 
             Console.WriteLine("Check begin!", Color.LimeGreen);
         }
-        
+
         static ReaderWriterLockSlim _readWriteLock = new ReaderWriterLockSlim();
         static void WriteToFileThreadSafe(string text, string file)
         {
@@ -148,13 +155,14 @@ namespace AXFBChk
                     if (cookie.Name == "checkpoint")
                         bcheckpoint = true;
                 }
-                if(bcheckpoint)
+                if (bcheckpoint)
                 {
                     Interlocked.Increment(ref checkpoint);
                     Console.WriteLine(String.Format("[Checkpoint] {0}", data), Color.Yellow);
                     WriteToFileThreadSafe(data, "FacebookCheckPoint.txt");
                 }
-                else { 
+                else
+                {
                     Interlocked.Increment(ref dead);
                     Console.WriteLine(String.Format("[Dead] {0}", data), Color.Red);
                 }
